@@ -41,7 +41,7 @@ func NewHistogramPlotter(limits []float64, counts []float64, ox, oy axisOrientat
 
 	pl.binwidth = limits[1] - limits[0]
 
-	// defaults
+	// defaults OK
 
 	pl.strokecolor = theme.Color(theme.ColorNameForeground)
 	pl.strokewidth = 0
