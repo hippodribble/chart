@@ -10,12 +10,12 @@ import (
 
 type plot struct {
 	widget.BaseWidget
-	ch         *chart
+	ch         *Chart
 	plottables []Plottable
 	lastSize   fyne.Size
 }
 
-func newPlot(ch *chart, pl []Plottable) *plot {
+func newPlot(ch *Chart, pl []Plottable) *plot {
 	p := &plot{ch: ch, plottables: pl}
 	p.ExtendBaseWidget(p)
 	return p

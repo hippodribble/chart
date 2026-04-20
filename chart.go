@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 	eventbus "github.com/dtomasi/go-event-bus/v3"
 )
@@ -17,7 +17,7 @@ const (
 	axismargin float32 = 0.1
 )
 
-type chart struct {
+type Chart struct {
 	widget.BaseWidget
 	canvas     *plot
 	axes       []*axis
@@ -29,8 +29,8 @@ type chart struct {
 // a chart has a plot canvas and some axis, but no title - add one in a border layout if required. They just take up space
 // the plot canvas listens to changes to the axes, as these can be manually set independently of data
 // the canvas has a reference back to the chart (maybe not necessary)
-func NewChart(plotters ...Plottable) *chart {
-	ch := &chart{
+func NewChart(plotters ...Plottable) *Chart {
+	ch := &Chart{
 		plottables: plotters,
 	}
 
@@ -48,7 +48,7 @@ func NewChart(plotters ...Plottable) *chart {
 	return ch
 }
 
-func (c *chart) CreateRenderer() fyne.WidgetRenderer {
+func (c *Chart) CreateRenderer() fyne.WidgetRenderer {
 	return chartRenderer{c: c}
 }
 
@@ -56,7 +56,7 @@ func (c *chart) CreateRenderer() fyne.WidgetRenderer {
 //
 //	As this depends on which axis is being used (left, right y axis etc), this
 //	needs to be taken into account
-func (c *chart) ResetAxes() {
+func (c *Chart) ResetAxes() {
 	if c.axes == nil {
 		return
 	}
@@ -139,29 +139,63 @@ func (c *chart) ResetAxes() {
 	}
 }
 
-func (c *chart) SetName(name string) {
+func (c *Chart) SetName(name string) {
 	c.name = name
 }
 
-func (c *chart) SetBus(bus *eventbus.EventBus) {
+func (c *Chart) SetBus(bus *eventbus.EventBus) {
 	c.bus = bus
 }
 
-func (c *chart) Save() {
+func (c *Chart) PadAxes() {
+	if c.axes==nil{return}
+	if len(c.axes)==0{return}
+
+	var xaxes, yaxes []*axis
+
+	for _, axis := range c.axes {
+		if axis.orientation == Bottom || axis.orientation == Top {
+			xaxes = append(xaxes, axis)
+		}
+		if axis.orientation == Left || axis.orientation == Right {
+			yaxes = append(yaxes, axis)
+		}
+	}
+
+	if len(xaxes) ==0 || len(yaxes) ==0 {
+		// log.Println(len(xaxes), s.ox)
+		// log.Println(len(yaxes), s.oy)
+		log.Fatalln("There appear to be missing axes for the data to be drawn on")
+	}
+
+	xaxis := xaxes[0]
+	yaxis := yaxes[0]
+
+	xaxis.limits.pad(10)
+
+	// we need to know where the data is as a fraction of the plot size
+	xmin := xaxis.limits.min
+	xmax := xaxis.limits.max
+	ymin := yaxis.limits.min
+	ymax := yaxis.limits.max
+
+	xmin -= 0.5
+	ymin -= 0.5
+	xmax += 0.5
+	ymax += 0.5
+	xaxes[0].setLimits(xmin, xmax)
+	yaxes[0].setLimits(ymin, ymax)
+
+}
+
+func (c *Chart) Save() {
+
 	im := fyne.CurrentApp().Driver().CanvasForObject(c).Capture()
 
 	fx := c.canvas.Position().X / c.Size().Width
 	fy := c.canvas.Position().Y / c.Size().Height
 	lx := (c.canvas.Position().X + c.canvas.Size().Width) / c.Size().Width
 	ly := (c.canvas.Position().Y + c.canvas.Size().Height) / c.Size().Height
-	
-	// log.Println(c.Position(), c.Size())
-	// log.Println(c.canvas.Position(), c.canvas.Size())
-
-	// log.Println("fx,fy,lx,ly", fx, fy, lx, ly)
-
-	// lx := centre.Size().Width / content.Size().Width
-	// ly := centre.Size().Height / content.Size().Height
 
 	W := im.Bounds().Dx()
 	H := im.Bounds().Dy()
@@ -172,7 +206,7 @@ func (c *chart) Save() {
 	i0 := int(fx * float32(W))
 	j0 := int(fy * float32(H))
 
-	IM := image.NewRGBA(image.Rect(0,0, int(oW), int(oH)))
+	IM := image.NewRGBA(image.Rect(0, 0, int(oW), int(oH)))
 
 	for i := 0; i < int(oW); i++ {
 		for j := 0; j < int(oH); j++ {
@@ -213,7 +247,7 @@ func (c *chart) Save() {
 }
 
 type chartRenderer struct {
-	c *chart
+	c *Chart
 }
 
 func (p chartRenderer) Destroy() {
@@ -234,6 +268,7 @@ func (p chartRenderer) Objects() []fyne.CanvasObject {
 }
 
 func (p chartRenderer) Layout(size fyne.Size) {
+
 	w := size.Width
 	h := size.Height
 
@@ -241,7 +276,6 @@ func (p chartRenderer) Layout(size fyne.Size) {
 
 	// log.Println(w*(1-2*axismargin), h*(1-2*axismargin))
 
-	
 	p.c.canvas.Resize(fyne.NewSize(w*(1-2*axismargin), h*(1-2*axismargin)))
 	for _, axis := range p.c.axes {
 		if !axis.Visible() {
